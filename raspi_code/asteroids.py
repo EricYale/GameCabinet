@@ -17,7 +17,8 @@
 # opposite side. Player lives are displayed as dots on the left and right edges
 # of the screen. The game state, including positions and velocities of all
 # objects, is updated in a main loop that also handles rendering and input
-# processing.
+# processing. All motion is made framerate-independent through the use of
+# a delta-time (dt) value in physics calculations.
 
 import pygame
 import serial
@@ -55,10 +56,14 @@ class Ship:
         self.radius = 10
         self.lives = 5
         self.is_accelerating = False
+        self.turn_direction = 0
         self.last_shot_time = 0
         self.shoot_cooldown = 0.25
         self.respawn_time = 0
         self.invincible = False
+        self.acceleration_rate = 200
+        self.turn_rate = 150
+        self.damping = 0.5
 
     def draw(self, surface):
         if self.lives <= 0 or self.is_respawning():
@@ -72,31 +77,31 @@ class Ship:
         point3 = self.pos + pygame.Vector2(math.cos(math.radians(self.angle - 140)), math.sin(math.radians(self.angle - 140))) * 15
         pygame.draw.polygon(surface, self.color, [point1, point2, point3], 2)
 
-    def update(self):
+    def update(self, dt):
+        self.angle += self.turn_direction * self.turn_rate * dt
+
         if self.is_accelerating:
-            acceleration = pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 0.2
-            self.vel += acceleration
+            acceleration = pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * self.acceleration_rate
+            self.vel += acceleration * dt
         
-        self.vel *= 0.995
-        self.pos += self.vel
+        self.vel -= self.vel * self.damping * dt
+        self.pos += self.vel * dt
 
         self.pos.x %= SCREEN_WIDTH
         self.pos.y %= SCREEN_HEIGHT
 
+        if self.invincible and pygame.time.get_ticks() > self.respawn_time + 3000:
+            self.invincible = False
+
         if self.is_respawning():
             self.vel = pygame.Vector2(0, 0)
-            if pygame.time.get_ticks() > self.respawn_time + 3000:
-                self.invincible = False
 
     def shoot(self, bullets):
         current_time = time.time()
         if self.lives > 0 and not self.is_respawning() and current_time - self.last_shot_time > self.shoot_cooldown:
             self.last_shot_time = current_time
-            bullet_vel = self.vel + pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 10
-            bullets.append(Bullet(self.pos.x, self.pos.y, bullet_vel, self.player_id))
-
-    def turn(self, direction):
-        self.angle += direction * 2.5
+            bullet_vel = self.vel + pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 300
+            bullets.append(Bullet(self.pos, bullet_vel, self.player_id))
 
     def hit(self):
         if not self.invincible:
@@ -117,9 +122,9 @@ class Ship:
         return self.invincible and pygame.time.get_ticks() < self.respawn_time + 3000
 
 class Bullet:
-    def __init__(self, x, y, vel, owner_id):
-        self.pos = pygame.Vector2(x, y)
-        self.vel = vel
+    def __init__(self, pos, vel, owner_id):
+        self.pos = pygame.Vector2(pos)
+        self.vel = pygame.Vector2(vel)
         self.radius = 3
         self.lifespan = 2.5
         self.birth_time = time.time()
@@ -128,19 +133,21 @@ class Bullet:
     def draw(self, surface):
         pygame.draw.circle(surface, WHITE, self.pos, self.radius)
 
-    def update(self):
-        self.pos += self.vel
+    def update(self, dt):
+        self.pos += self.vel * dt
         self.pos.x %= SCREEN_WIDTH
         self.pos.y %= SCREEN_HEIGHT
 
 class Asteroid:
     def __init__(self, pos, size):
         self.pos = pygame.Vector2(pos)
-        self.vel = pygame.Vector2(random.uniform(-1.5, 1.5), random.uniform(-1.5, 1.5))
+        self.vel = pygame.Vector2(random.uniform(-100, 100), random.uniform(-100, 100))
+        if self.vel.length() == 0:
+            self.vel = pygame.Vector2(50, 50)
         self.size = size
         self.radius = size * 10
         self.angle = 0
-        self.rotation_speed = random.uniform(-1, 1)
+        self.rotation_speed = random.uniform(-60, 60)
         self.shape = []
         num_vertices = random.randint(7, 12)
         for i in range(num_vertices):
@@ -155,9 +162,9 @@ class Asteroid:
             points.append(self.pos + rotated_point)
         pygame.draw.polygon(surface, WHITE, points, 2)
 
-    def update(self):
-        self.pos += self.vel
-        self.angle += self.rotation_speed
+    def update(self, dt):
+        self.pos += self.vel * dt
+        self.angle += self.rotation_speed * dt
         self.pos.x %= SCREEN_WIDTH
         self.pos.y %= SCREEN_HEIGHT
 
@@ -210,13 +217,22 @@ def main():
     p1_switch_state = 0
     p2_switch_state = 1
 
+    last_time = time.time()
+
     while running:
+        current_time = time.time()
+        dt = current_time - last_time
+        last_time = current_time
+
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
+
+        player1.turn_direction = 0
+        player2.turn_direction = 0
 
         if ser:
             while ser.in_waiting:
@@ -232,11 +248,11 @@ def main():
                             p1_switch = int(values[6])
                             p2_switch = int(values[7])
 
-                            if p1_joy_x < 1024: player1.turn(-1)
-                            if p1_joy_x > 3072: player1.turn(1)
+                            if p1_joy_x < 1024: player1.turn_direction = -1
+                            if p1_joy_x > 3072: player1.turn_direction = 1
                             
-                            if p2_joy_x < 1024: player2.turn(-1)
-                            if p2_joy_x > 3072: player2.turn(1)
+                            if p2_joy_x < 1024: player2.turn_direction = -1
+                            if p2_joy_x > 3072: player2.turn_direction = 1
 
                             if p1_button == 0 and not p1_button_pressed:
                                 player1.shoot(bullets)
@@ -262,18 +278,18 @@ def main():
                     pass
         else:
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]: player1.turn(-1)
-            if keys[pygame.K_d]: player1.turn(1)
+            if keys[pygame.K_a]: player1.turn_direction = -1
+            if keys[pygame.K_d]: player1.turn_direction = 1
             player1.is_accelerating = keys[pygame.K_w]
             if keys[pygame.K_SPACE]: player1.shoot(bullets)
 
-            if keys[pygame.K_LEFT]: player2.turn(-1)
-            if keys[pygame.K_RIGHT]: player2.turn(1)
+            if keys[pygame.K_LEFT]: player2.turn_direction = -1
+            if keys[pygame.K_RIGHT]: player2.turn_direction = 1
             player2.is_accelerating = keys[pygame.K_UP]
             if keys[pygame.K_RETURN]: player2.shoot(bullets)
 
         for obj in players + bullets + asteroids:
-            obj.update()
+            obj.update(dt)
 
         active_bullets = [b for b in bullets if time.time() - b.birth_time < b.lifespan]
         
