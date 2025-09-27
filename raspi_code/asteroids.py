@@ -74,10 +74,10 @@ class Ship:
 
     def update(self):
         if self.is_accelerating:
-            acceleration = pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 0.1
+            acceleration = pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 0.2
             self.vel += acceleration
         
-        self.vel *= 0.99
+        self.vel *= 0.995
         self.pos += self.vel
 
         self.pos.x %= SCREEN_WIDTH
@@ -92,11 +92,11 @@ class Ship:
         current_time = time.time()
         if self.lives > 0 and not self.is_respawning() and current_time - self.last_shot_time > self.shoot_cooldown:
             self.last_shot_time = current_time
-            bullet_vel = pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 10
+            bullet_vel = self.vel + pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * 10
             bullets.append(Bullet(self.pos.x, self.pos.y, bullet_vel, self.player_id))
 
     def turn(self, direction):
-        self.angle += direction * 3
+        self.angle += direction * 2.5
 
     def hit(self):
         if not self.invincible:
@@ -121,7 +121,7 @@ class Bullet:
         self.pos = pygame.Vector2(x, y)
         self.vel = vel
         self.radius = 3
-        self.lifespan = 2
+        self.lifespan = 2.5
         self.birth_time = time.time()
         self.owner_id = owner_id
 
@@ -134,9 +134,9 @@ class Bullet:
         self.pos.y %= SCREEN_HEIGHT
 
 class Asteroid:
-    def __init__(self, x, y, size):
-        self.pos = pygame.Vector2(x, y)
-        self.vel = pygame.Vector2(random.uniform(-1, 1), random.uniform(-1, 1))
+    def __init__(self, pos, size):
+        self.pos = pygame.Vector2(pos)
+        self.vel = pygame.Vector2(random.uniform(-1.5, 1.5), random.uniform(-1.5, 1.5))
         self.size = size
         self.radius = size * 10
         self.angle = 0
@@ -161,6 +161,26 @@ class Asteroid:
         self.pos.x %= SCREEN_WIDTH
         self.pos.y %= SCREEN_HEIGHT
 
+def spawn_asteroid(size, players):
+    while True:
+        edge = random.choice(['top', 'bottom', 'left', 'right'])
+        if edge == 'top':
+            pos = pygame.Vector2(random.uniform(0, SCREEN_WIDTH), -30)
+        elif edge == 'bottom':
+            pos = pygame.Vector2(random.uniform(0, SCREEN_WIDTH), SCREEN_HEIGHT + 30)
+        elif edge == 'left':
+            pos = pygame.Vector2(-30, random.uniform(0, SCREEN_HEIGHT))
+        else: # right
+            pos = pygame.Vector2(SCREEN_WIDTH + 30, random.uniform(0, SCREEN_HEIGHT))
+        
+        too_close = False
+        for player in players:
+            if pos.distance_to(player.pos) < 200:
+                too_close = True
+                break
+        if not too_close:
+            return Asteroid(pos, size)
+
 def draw_lives(surface, player, side):
     if side == 'left':
         x_pos = 30
@@ -182,9 +202,7 @@ def main():
     bullets = []
     asteroids = []
     for _ in range(8):
-        x = random.randint(0, SCREEN_WIDTH)
-        y = random.randint(0, SCREEN_HEIGHT)
-        asteroids.append(Asteroid(x, y, 3))
+        asteroids.append(spawn_asteroid(3, players))
 
     p1_button_pressed = False
     p2_button_pressed = False
@@ -257,44 +275,49 @@ def main():
         for obj in players + bullets + asteroids:
             obj.update()
 
-        bullets_to_remove = []
-        asteroids_to_remove = []
+        active_bullets = [b for b in bullets if time.time() - b.birth_time < b.lifespan]
         
-        for i, bullet in enumerate(bullets):
-            if time.time() - bullet.birth_time > bullet.lifespan:
-                bullets_to_remove.append(i)
-                continue
-            
-            for j, asteroid in enumerate(asteroids):
+        new_asteroids = []
+        surviving_asteroids = []
+        hit_asteroids = set()
+
+        for bullet in active_bullets:
+            for i, asteroid in enumerate(asteroids):
+                if i in hit_asteroids: continue
                 if (bullet.pos - asteroid.pos).length() < asteroid.radius:
-                    if i not in bullets_to_remove: bullets_to_remove.append(i)
-                    if j not in asteroids_to_remove: asteroids_to_remove.append(j)
+                    hit_asteroids.add(i)
+                    bullet.lifespan = 0 
                     if asteroid.size > 1:
                         for _ in range(2):
-                            asteroids.append(Asteroid(asteroid.pos.x, asteroid.pos.y, asteroid.size - 1))
-            
-            for player in players:
-                if bullet.owner_id != player.player_id and (bullet.pos - player.pos).length() < player.radius:
-                    if player.hit():
-                        if i not in bullets_to_remove: bullets_to_remove.append(i)
+                            new_asteroids.append(Asteroid(asteroid.pos, asteroid.size - 1))
+        
+        for i, asteroid in enumerate(asteroids):
+            if i not in hit_asteroids:
+                surviving_asteroids.append(asteroid)
 
-        for j, asteroid in enumerate(asteroids):
-            for player in players:
+        asteroids = surviving_asteroids + new_asteroids
+
+        for player in players:
+            for asteroid in asteroids:
                 if (asteroid.pos - player.pos).length() < (asteroid.radius + player.radius):
                     if player.hit():
-                        if j not in asteroids_to_remove: asteroids_to_remove.append(j)
+                        asteroid.vel = pygame.Vector2(0,0) # Effectively remove asteroid
                         if asteroid.size > 1:
                             for _ in range(2):
-                                asteroids.append(Asteroid(asteroid.pos.x, asteroid.pos.y, asteroid.size - 1))
+                                asteroids.append(Asteroid(asteroid.pos, asteroid.size - 1))
+                        break 
+            
+            for bullet in active_bullets:
+                if bullet.owner_id != player.player_id and (bullet.pos - player.pos).length() < player.radius:
+                    if player.hit():
+                        bullet.lifespan = 0
 
-        bullets = [b for i, b in enumerate(bullets) if i not in sorted(bullets_to_remove, reverse=True)]
-        asteroids = [a for i, a in enumerate(asteroids) if i not in sorted(asteroids_to_remove, reverse=True)]
+        bullets = [b for b in active_bullets if time.time() - b.birth_time < b.lifespan]
+        asteroids = [a for a in asteroids if a.vel.length() > 0]
 
         if not asteroids:
             for _ in range(8):
-                x = random.randint(0, SCREEN_WIDTH)
-                y = random.randint(0, SCREEN_HEIGHT)
-                asteroids.append(Asteroid(x, y, 3))
+                asteroids.append(spawn_asteroid(3, players))
 
         screen.fill(BLACK)
         for obj in players + bullets + asteroids:
