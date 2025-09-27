@@ -54,7 +54,7 @@ class Ship:
         self.vel = pygame.Vector2(0, 0)
         self.angle = 0
         self.color = color
-        self.radius = 10 * SCALE_FACTOR
+        self.radius = 20 * SCALE_FACTOR
         self.lives = 5
         self.is_accelerating = False
         self.turn_direction = 0
@@ -73,7 +73,7 @@ class Ship:
         if self.invincible and (pygame.time.get_ticks() // 200) % 2 == 0:
             return
 
-        draw_radius = 15 * SCALE_FACTOR
+        draw_radius = 30 * SCALE_FACTOR
         point1 = self.pos + pygame.Vector2(math.cos(math.radians(self.angle)), math.sin(math.radians(self.angle))) * draw_radius
         point2 = self.pos + pygame.Vector2(math.cos(math.radians(self.angle + 140)), math.sin(math.radians(self.angle + 140))) * draw_radius
         point3 = self.pos + pygame.Vector2(math.cos(math.radians(self.angle - 140)), math.sin(math.radians(self.angle - 140))) * draw_radius
@@ -257,8 +257,8 @@ def main():
                             if p1_joy_x < 1024: player1.turn_direction = -1
                             if p1_joy_x > 3072: player1.turn_direction = 1
                             
-                            if p2_joy_x < 1024: player2.turn_direction = -1
-                            if p2_joy_x > 3072: player2.turn_direction = 1
+                            if p2_joy_x < 1024: player2.turn_direction = 1
+                            if p2_joy_x > 3072: player2.turn_direction = -1
 
                             if p1_button == 0 and not p1_button_pressed:
                                 player1.shoot(bullets)
