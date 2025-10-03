@@ -195,34 +195,22 @@ class HarmonyParticle:
         pygame.draw.circle(particle_surf, color, (int(self.size), int(self.size)), int(self.size))
         surface.blit(particle_surf, (self.pos.x - self.size, self.pos.y - self.size), special_flags=pygame.BLEND_ALPHA_SDL2)
 
-def calculate_joystick_harmony(p1_x, p2_x):
-    """Calculate growth direction and harmony from joystick inputs"""
+def calculate_joystick_direction_and_speed(p1_x, p2_x):
+    """Calculate growth direction and speed from average joystick input"""
     # Convert to -1 to 1 range
     p1_normalized = (p1_x - 2048) / 2048.0
     p2_normalized = (p2_x - 2048) / 2048.0
     
-    # Only consider significant movements (more forgiving threshold)
-    if abs(p1_normalized) < 0.2:
-        p1_normalized = 0
-    if abs(p2_normalized) < 0.2:
-        p2_normalized = 0
-        
-    # Calculate agreement - if both are moving in similar direction
-    if p1_normalized == 0 and p2_normalized == 0:
-        return 0, 1.0, True  # Both neutral = perfect harmony, no direction
-    elif p1_normalized == 0 or p2_normalized == 0:
-        # If one is neutral, use the other's direction with reduced harmony
-        active_direction = p1_normalized if p1_normalized != 0 else p2_normalized
-        return active_direction, 0.7, True  # Still allow growth with one player
-    elif (p1_normalized > 0) == (p2_normalized > 0):
-        # Same direction
-        avg_direction = (p1_normalized + p2_normalized) / 2
-        harmony_strength = 1.0 - abs(p1_normalized - p2_normalized) / 2
-        return avg_direction, harmony_strength, True
-    else:
-        # Opposite directions - still allow some growth but very weak
-        avg_direction = (p1_normalized + p2_normalized) / 4  # Reduced effect
-        return avg_direction, 0.3, True  # Weak harmony but still allows growth
+    # Calculate average direction
+    avg_direction = (p1_normalized + p2_normalized) / 2
+    
+    # Speed based on magnitude of average direction
+    speed = abs(avg_direction)
+    
+    # Direction in degrees (convert from -1,1 to angle change)
+    angle_change = avg_direction * 45  # Max 45 degrees per growth step
+    
+    return angle_change, speed
 
 def main():
     clock = pygame.time.Clock()
@@ -244,10 +232,9 @@ def main():
     
     # Game state
     growth_active = False
-    harmony_level = 0.0
     background_pulse = 0.0
     last_growth_time = 0
-    growth_cooldown = 0.3
+    growth_cooldown = 0.3  # Base growth speed
     
     # Input states
     p1_button_pressed = False
@@ -304,29 +291,23 @@ def main():
             if keys[pygame.K_RIGHT]: p2_joy_x = 4095
             if keys[pygame.K_SPACE]: p1_button = 0
             if keys[pygame.K_RETURN]: p2_button = 0
-            # Make switches default to growth-enabled for keyboard testing
-            p1_switch = 1 if keys[pygame.K_w] else 1  # Default to ON
-            p2_switch = 0 if keys[pygame.K_UP] else 0  # Default to ON
+            # Switch logic for keyboard: W and UP keys act as switches
+            p1_switch = 1 if keys[pygame.K_w] else 0
+            p2_switch = 0 if keys[pygame.K_UP] else 1
         
-        # Calculate joystick harmony
-        direction, harmony_strength, in_harmony = calculate_joystick_harmony(p1_joy_x, p2_joy_x)
+        # Calculate joystick direction and speed from average
+        angle_change, growth_speed = calculate_joystick_direction_and_speed(p1_joy_x, p2_joy_x)
         
-        # Update harmony level smoothly
-        target_harmony = harmony_strength if in_harmony else 0
-        harmony_level += (target_harmony - harmony_level) * dt * 3
+
         
-        # Debug info for testing (remove this later)
-        if not ser:  # Only when using keyboard
-            debug_info = f"Joy: P1={p1_joy_x} P2={p2_joy_x} | Harmony: {harmony_level:.2f} | Growth: {growth_active}"
-            # print(debug_info)  # Uncomment to see debug info
-        
-        # Check if both switches agree on growth (very forgiving for testing)
+        # Check if both switches agree to GROW (both players must agree)
         if ser:
-            # Use switches when hardware is connected
+            # Hardware: both switches must be "up" to grow
             growth_active = (p1_switch == 1 and p2_switch == 0)
         else:
-            # For keyboard testing, always allow growth
-            growth_active = True
+            # Keyboard: both keys must be pressed to grow (W + UP)
+            keys = pygame.key.get_pressed()
+            growth_active = keys[pygame.K_w] and keys[pygame.K_UP]
         
         # Handle differentiated button functions
         if plant_segments:
@@ -356,14 +337,14 @@ def main():
             elif p2_button == 1:
                 p2_button_pressed = False
         
-        # Grow plant
-        if (growth_active and in_harmony and harmony_level > 0.1 and 
-            current_time - last_growth_time > growth_cooldown and
-            len(plant_segments) < 200):
+        # Grow plant based on joystick average and switch agreement
+        # Growth speed depends on joystick magnitude
+        actual_cooldown = growth_cooldown / max(0.1, growth_speed)  # Faster with more joystick input
+        
+        if (growth_active and current_time - last_growth_time > actual_cooldown and len(plant_segments) < 200):
             
             if current_growth_point:
-                # Adjust angle based on joystick direction
-                angle_change = direction * 30
+                # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
                 
@@ -450,8 +431,8 @@ def main():
         background_pulse += dt
         
         # Render
-        # Dynamic background based on harmony
-        pulse_intensity = int(10 * harmony_level * (1 + math.sin(background_pulse * 2) * 0.3))
+        # Dynamic background based on growth activity
+        pulse_intensity = int(10 * growth_speed * (1 + math.sin(background_pulse * 2) * 0.3)) if growth_active else 0
         bg_color = tuple(max(0, min(255, c + pulse_intensity)) for c in BACKGROUND_BASE)
         screen.fill(bg_color)
         
@@ -471,11 +452,11 @@ def main():
         for particle in harmony_particles:
             particle.draw(screen)
         
-        # Draw harmony indicator (subtle glow around current growth point)
-        if current_growth_point and harmony_level > 0.1:
+        # Draw growth indicator (subtle glow around current growth point)
+        if current_growth_point and growth_active and growth_speed > 0.1:
             tip = current_growth_point.end_pos
-            glow_radius = int(30 * harmony_level * SCALE_FACTOR)
-            glow_alpha = int(50 * harmony_level)
+            glow_radius = int(30 * growth_speed * SCALE_FACTOR)
+            glow_alpha = int(50 * growth_speed)
             
             glow_surf = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
             glow_color = (*BRIGHT_GREEN, glow_alpha)
