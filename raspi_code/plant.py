@@ -304,8 +304,9 @@ def main():
             if keys[pygame.K_RIGHT]: p2_joy_x = 4095
             if keys[pygame.K_SPACE]: p1_button = 0
             if keys[pygame.K_RETURN]: p2_button = 0
-            if keys[pygame.K_w]: p1_switch = 1
-            if keys[pygame.K_UP]: p2_switch = 0
+            # Make switches default to growth-enabled for keyboard testing
+            p1_switch = 1 if keys[pygame.K_w] else 1  # Default to ON
+            p2_switch = 0 if keys[pygame.K_UP] else 0  # Default to ON
         
         # Calculate joystick harmony
         direction, harmony_strength, in_harmony = calculate_joystick_harmony(p1_joy_x, p2_joy_x)
@@ -314,8 +315,8 @@ def main():
         target_harmony = harmony_strength if in_harmony else 0
         harmony_level += (target_harmony - harmony_level) * dt * 3
         
-        # Check if both switches agree on growth
-        growth_active = (p1_switch == 1 and p2_switch == 0)  # Both switches "up"
+        # Check if both switches agree on growth (more forgiving)
+        growth_active = (p1_switch == 1 and p2_switch == 0) or len(plant_segments) == 1  # Always allow initial growth
         
         # Handle differentiated button functions
         if plant_segments:
@@ -346,12 +347,12 @@ def main():
                 p2_button_pressed = False
         
         # Grow plant
-        if (growth_active and in_harmony and harmony_level > 0.2 and 
+        if (growth_active and in_harmony and harmony_level > 0.1 and 
             current_time - last_growth_time > growth_cooldown and
             len(plant_segments) < 200):  # Increased limit for branching
             
             if current_growth_point:
-                # Check if the NEXT segment would go out of bounds
+                # Adjust angle based on joystick direction
                 angle_change = direction * 30  # Max 30 degree change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
@@ -399,7 +400,6 @@ def main():
                             ))
                         
                         last_growth_time = current_time
-                    # If no buds available, stop growing (plant reaches natural limit)
                 elif not would_hit_edge:
                     # Normal growth - safe to grow
                     current_angle = test_angle
