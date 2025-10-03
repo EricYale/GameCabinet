@@ -233,8 +233,6 @@ def main():
     # Game state
     growth_active = False
     background_pulse = 0.0
-    last_growth_time = 0
-    growth_cooldown = 0.3  # Base growth speed
     
     # Input states
     p1_button_pressed = False
@@ -285,15 +283,13 @@ def main():
         else:
             # Keyboard fallback for testing
             keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]: p1_joy_x = 0
-            if keys[pygame.K_d]: p1_joy_x = 4095
-            if keys[pygame.K_LEFT]: p2_joy_x = 0
-            if keys[pygame.K_RIGHT]: p2_joy_x = 4095
+            # More responsive keyboard controls
+            if keys[pygame.K_a]: p1_joy_x = 500   # Left
+            if keys[pygame.K_d]: p1_joy_x = 3500  # Right
+            if keys[pygame.K_LEFT]: p2_joy_x = 500   # Left
+            if keys[pygame.K_RIGHT]: p2_joy_x = 3500 # Right
             if keys[pygame.K_SPACE]: p1_button = 0
             if keys[pygame.K_RETURN]: p2_button = 0
-            # Switch logic for keyboard: W and UP keys act as switches
-            p1_switch = 1 if keys[pygame.K_w] else 0
-            p2_switch = 0 if keys[pygame.K_UP] else 1
         
         # Calculate joystick direction and speed from average
         angle_change, growth_speed = calculate_joystick_direction_and_speed(p1_joy_x, p2_joy_x)
@@ -305,9 +301,8 @@ def main():
             # Hardware: both switches must be "up" to grow
             growth_active = (p1_switch == 1 and p2_switch == 0)
         else:
-            # Keyboard: both keys must be pressed to grow (W + UP)
-            keys = pygame.key.get_pressed()
-            growth_active = keys[pygame.K_w] and keys[pygame.K_UP]
+            # Keyboard: default to growing, or use specific keys to test switches
+            growth_active = True  # Always grow for keyboard testing
         
         # Handle differentiated button functions
         if plant_segments:
@@ -338,10 +333,8 @@ def main():
                 p2_button_pressed = False
         
         # Grow plant based on joystick average and switch agreement
-        # Growth speed depends on joystick magnitude
-        actual_cooldown = growth_cooldown / max(0.1, growth_speed)  # Faster with more joystick input
-        
-        if (growth_active and current_time - last_growth_time > actual_cooldown and len(plant_segments) < 200):
+        # No cooldown - grows every frame when active
+        if (growth_active and len(plant_segments) < 200):
             
             if current_growth_point:
                 # Apply joystick direction change
@@ -387,7 +380,6 @@ def main():
                         for _ in range(5):
                             harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
                         
-                        last_growth_time = current_time
                 elif not would_hit_edge:
                     # Normal growth - ALWAYS allow if not hitting edge (regardless of buds)
                     current_angle = test_angle
@@ -408,8 +400,6 @@ def main():
                         harmony_particles.append(HarmonyParticle(
                             current_growth_point.end_pos.x, current_growth_point.end_pos.y
                         ))
-                    
-                    last_growth_time = current_time
                 # If would hit edge but no buds available, just stop growing naturally
         
         # Update all objects
