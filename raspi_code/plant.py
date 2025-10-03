@@ -233,6 +233,7 @@ def main():
     # Game state
     growth_active = False
     background_pulse = 0.0
+    growth_frame_counter = 0
     
     # Input states
     p1_button_pressed = False
@@ -333,8 +334,9 @@ def main():
                 p2_button_pressed = False
         
         # Grow plant based on joystick average and switch agreement
-        # No cooldown - grows every frame when active
-        if (growth_active and len(plant_segments) < 200):
+        # Add frame counter to limit growth speed
+        growth_frame_counter += 1
+        if (growth_active and len(plant_segments) < 200 and growth_frame_counter % 10 == 0):  # Grow every 10 frames
             
             if current_growth_point:
                 # Apply joystick direction change
