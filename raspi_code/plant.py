@@ -376,8 +376,8 @@ def main():
                 would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
                                  next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
                 
-                if would_hit_edge:
-                    # Try to branch to a bud if available
+                if would_hit_edge and buds:
+                    # Only branch if buds are available AND we would hit edge
                     next_bud = None
                     for bud in buds:
                         if not bud.used:
@@ -407,9 +407,8 @@ def main():
                             harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
                         
                         last_growth_time = current_time
-                    # If no buds, just stop growing (plant is complete)
-                else:
-                    # Normal growth - always allow if not hitting edge
+                elif not would_hit_edge:
+                    # Normal growth - ALWAYS allow if not hitting edge (regardless of buds)
                     current_angle = test_angle
                     
                     # Create new segment
@@ -430,6 +429,7 @@ def main():
                         ))
                     
                     last_growth_time = current_time
+                # If would hit edge but no buds available, just stop growing naturally
         
         # Update all objects
         for i, segment in enumerate(plant_segments):
