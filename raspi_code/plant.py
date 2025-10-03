@@ -201,25 +201,28 @@ def calculate_joystick_harmony(p1_x, p2_x):
     p1_normalized = (p1_x - 2048) / 2048.0
     p2_normalized = (p2_x - 2048) / 2048.0
     
-    # Only consider significant movements
-    if abs(p1_normalized) < 0.3:
+    # Only consider significant movements (more forgiving threshold)
+    if abs(p1_normalized) < 0.2:
         p1_normalized = 0
-    if abs(p2_normalized) < 0.3:
+    if abs(p2_normalized) < 0.2:
         p2_normalized = 0
         
     # Calculate agreement - if both are moving in similar direction
     if p1_normalized == 0 and p2_normalized == 0:
-        return 0, 0, True  # Both neutral = harmony
+        return 0, 1.0, True  # Both neutral = perfect harmony, no direction
     elif p1_normalized == 0 or p2_normalized == 0:
-        return 0, 0, False  # One active, one not = no harmony
+        # If one is neutral, use the other's direction with reduced harmony
+        active_direction = p1_normalized if p1_normalized != 0 else p2_normalized
+        return active_direction, 0.7, True  # Still allow growth with one player
     elif (p1_normalized > 0) == (p2_normalized > 0):
         # Same direction
         avg_direction = (p1_normalized + p2_normalized) / 2
         harmony_strength = 1.0 - abs(p1_normalized - p2_normalized) / 2
         return avg_direction, harmony_strength, True
     else:
-        # Opposite directions
-        return 0, 0, False
+        # Opposite directions - still allow some growth but very weak
+        avg_direction = (p1_normalized + p2_normalized) / 4  # Reduced effect
+        return avg_direction, 0.3, True  # Weak harmony but still allows growth
 
 def main():
     clock = pygame.time.Clock()
@@ -342,17 +345,25 @@ def main():
                 p2_button_pressed = False
         
         # Grow plant
-        if (growth_active and in_harmony and harmony_level > 0.3 and 
+        if (growth_active and in_harmony and harmony_level > 0.2 and 
             current_time - last_growth_time > growth_cooldown and
             len(plant_segments) < 200):  # Increased limit for branching
             
             if current_growth_point:
-                # Check if we hit screen edges
-                tip_pos = current_growth_point.end_pos
-                hit_edge = (tip_pos.x < 50 or tip_pos.x > SCREEN_WIDTH - 50 or 
-                           tip_pos.y < 50 or tip_pos.y > SCREEN_HEIGHT - 50)
+                # Check if the NEXT segment would go out of bounds
+                angle_change = direction * 30  # Max 30 degree change
+                test_angle = current_angle + angle_change
+                test_angle = max(-160, min(160, test_angle))
                 
-                if hit_edge and buds:
+                # Calculate where the next segment would end up
+                next_end_x = current_growth_point.end_pos.x + math.cos(math.radians(test_angle)) * segment_length
+                next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
+                
+                # Check if next segment would go out of bounds
+                would_hit_edge = (next_end_x < 50 or next_end_x > SCREEN_WIDTH - 50 or 
+                                 next_end_y < 50 or next_end_y > SCREEN_HEIGHT - 50)
+                
+                if would_hit_edge and buds:
                     # Find the first unused bud
                     next_bud = None
                     for bud in buds:
@@ -378,14 +389,17 @@ def main():
                         new_segment.segment_index = len(plant_segments)
                         plant_segments.append(new_segment)
                         current_growth_point = new_segment
-                else:
-                    # Normal growth
-                    # Adjust angle based on joystick direction
-                    angle_change = direction * 30  # Max 30 degree change
-                    current_angle += angle_change
-                    
-                    # Keep angle reasonable
-                    current_angle = max(-160, min(160, current_angle))
+                        
+                        # Add growth particles
+                        for _ in range(5):
+                            harmony_particles.append(HarmonyParticle(
+                                next_bud.pos.x, next_bud.pos.y
+                            ))
+                        
+                        last_growth_time = current_time
+                elif not would_hit_edge:
+                    # Normal growth - safe to grow
+                    current_angle = test_angle
                     
                     # Create new segment
                     new_segment = PlantSegment(
@@ -397,14 +411,14 @@ def main():
                     new_segment.segment_index = len(plant_segments)
                     plant_segments.append(new_segment)
                     current_growth_point = new_segment
-                
-                # Add growth particles
-                for _ in range(3):
-                    harmony_particles.append(HarmonyParticle(
-                        current_growth_point.end_pos.x, current_growth_point.end_pos.y
-                    ))
-                
-                last_growth_time = current_time
+                    
+                    # Add growth particles
+                    for _ in range(3):
+                        harmony_particles.append(HarmonyParticle(
+                            current_growth_point.end_pos.x, current_growth_point.end_pos.y
+                        ))
+                    
+                    last_growth_time = current_time
         
         # Update all objects
         for i, segment in enumerate(plant_segments):
