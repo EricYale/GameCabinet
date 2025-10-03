@@ -335,6 +335,7 @@ def main():
                 
             # Player 2: Create buds (new growth points)
             if p2_button == 0 and not p2_button_pressed:
+                # Place bud at current tip location, but it will become a branch point
                 bud = Bud(tip_pos.x, tip_pos.y, len(plant_segments) - 1)
                 buds.append(bud)
                 # Add harmony particles
@@ -360,8 +361,9 @@ def main():
                 next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
                 
                 # Check if next segment would go out of bounds
-                would_hit_edge = (next_end_x < 50 or next_end_x > SCREEN_WIDTH - 50 or 
-                                 next_end_y < 50 or next_end_y > SCREEN_HEIGHT - 50)
+                margin = 80  # Bigger margin for better visibility
+                would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
+                                 next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
                 
                 if would_hit_edge and buds:
                     # Find the first unused bud
@@ -375,8 +377,8 @@ def main():
                         # Switch to growing from this bud
                         next_bud.used = True
                         current_growth_point = plant_segments[next_bud.segment_index]
-                        # Reset angle to grow downward from bud
-                        current_angle = 90  # Downward
+                        # Start new branch with neutral angle (will be controlled by joystick)
+                        current_angle = -45  # Slight upward angle to start
                         
                         # Create connecting segment from bud
                         new_segment = PlantSegment(
@@ -397,6 +399,7 @@ def main():
                             ))
                         
                         last_growth_time = current_time
+                    # If no buds available, stop growing (plant reaches natural limit)
                 elif not would_hit_edge:
                     # Normal growth - safe to grow
                     current_angle = test_angle
@@ -419,6 +422,7 @@ def main():
                         ))
                     
                     last_growth_time = current_time
+                # If would hit edge but no buds available, simply don't grow (wait for buds)
         
         # Update all objects
         for i, segment in enumerate(plant_segments):
