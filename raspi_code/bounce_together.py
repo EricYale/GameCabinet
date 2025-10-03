@@ -202,12 +202,6 @@ def main():
             if event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     running = False
-                if event.key == pygame.K_SPACE and not game_active:
-                    ball = Ball()
-                    p1_paddle = Paddle(100 * SCALE_FACTOR, BLUE, 1)
-                    p2_paddle = Paddle(SCREEN_WIDTH - 100 * SCALE_FACTOR, RED, 2)
-                    particles = []
-                    game_active = True
         
         p1_joy_x = 0
         p1_joy_y = 0
@@ -215,6 +209,8 @@ def main():
         p2_joy_y = 0
         p1_button = 1
         p2_button = 1
+        p1_switch = 0
+        p2_switch = 1
         
         if ser:
             while ser.in_waiting:
@@ -227,6 +223,8 @@ def main():
                             p1_joy_x = (int(values[3]) - 2048) / 2048.0
                             p1_button = int(values[4])
                             p2_button = int(values[5])
+                            p1_switch = int(values[6])
+                            p2_switch = int(values[7])
                 except (ValueError, IndexError):
                     pass
         else:
@@ -235,6 +233,20 @@ def main():
             p2_joy_x = -0.8 if keys[pygame.K_LEFT] else (0.8 if keys[pygame.K_RIGHT] else 0)
             p1_button = 0 if keys[pygame.K_SPACE] else 1
             p2_button = 0 if keys[pygame.K_RETURN] else 1
+            p1_switch = 1 if keys[pygame.K_q] else 0
+            p2_switch = 0 if keys[pygame.K_e] else 1
+        
+        if not game_active:
+            any_input = (abs(p1_joy_x) > 0.3 or abs(p2_joy_x) > 0.3 or 
+                        p1_button == 0 or p2_button == 0 or 
+                        p1_switch == 1 or p2_switch == 0)
+            
+            if any_input:
+                ball = Ball()
+                p1_paddle = Paddle(100 * SCALE_FACTOR, BLUE, 1)
+                p2_paddle = Paddle(SCREEN_WIDTH - 100 * SCALE_FACTOR, RED, 2)
+                particles = []
+                game_active = True
         
         if game_active:
             p1_paddle.update(dt, p1_joy_x)
@@ -291,7 +303,7 @@ def main():
             screen.blit(final_score, (SCREEN_WIDTH // 2 - final_score.get_width() // 2,
                                      SCREEN_HEIGHT // 2 - 50 * SCALE_FACTOR))
             
-            restart_text = font.render("Press SPACE to play again", True, WHITE)
+            restart_text = font.render("Move joystick, press button, or flip switch to play again", True, WHITE)
             screen.blit(restart_text, (SCREEN_WIDTH // 2 - restart_text.get_width() // 2,
                                       SCREEN_HEIGHT // 2 + 50 * SCALE_FACTOR))
         
