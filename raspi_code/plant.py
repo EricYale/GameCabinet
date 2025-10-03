@@ -297,13 +297,8 @@ def main():
         
 
         
-        # Check if both switches agree to GROW (both players must agree)
-        if ser:
-            # Hardware: both switches must be "up" to grow
-            growth_active = (p1_switch == 1 and p2_switch == 0)
-        else:
-            # Keyboard: default to growing, or use specific keys to test switches
-            growth_active = True  # Always grow for keyboard testing
+        # SIMPLE: Always grow - no switch logic
+        growth_active = True
         
         # Handle differentiated button functions
         if plant_segments:
@@ -333,12 +328,9 @@ def main():
             elif p2_button == 1:
                 p2_button_pressed = False
         
-        # Grow plant based on joystick average and switch agreement
-        # Add frame counter to limit growth speed
+        # SIMPLE GROWTH: Just grow every 10 frames with joystick direction
         growth_frame_counter += 1
-        if (growth_active and len(plant_segments) < 200 and growth_frame_counter % 10 == 0):  # Grow every 10 frames
-            
-            if current_growth_point:
+        if growth_frame_counter % 10 == 0:
                 # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
