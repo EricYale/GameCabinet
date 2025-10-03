@@ -20,7 +20,6 @@ import serial
 import math
 import random
 import time
-from typing import List, Tuple
 
 pygame.init()
 
@@ -54,7 +53,7 @@ except serial.SerialException:
     print("Serial port not found. Running with keyboard controls.")
 
 class PlantSegment:
-    def __init__(self, x: float, y: float, angle: float, length: float):
+    def __init__(self, x, y, angle, length):
         self.start_pos = pygame.Vector2(x, y)
         self.angle = angle
         self.length = length
@@ -62,11 +61,11 @@ class PlantSegment:
             math.cos(math.radians(angle)) * length,
             math.sin(math.radians(angle)) * length
         )
-        self.thickness = max(3, 15 - len(plant_segments) * 0.1) * SCALE_FACTOR
+        self.thickness = max(3, 15 * SCALE_FACTOR)
         self.age = 0
         self.growth_animation = 0
         
-    def update(self, dt: float):
+    def update(self, dt):
         self.age += dt
         if self.growth_animation < 1.0:
             self.growth_animation = min(1.0, self.growth_animation + dt * 2)
@@ -92,7 +91,7 @@ class PlantSegment:
         pygame.draw.line(surface, color, self.start_pos, current_end, int(self.thickness))
 
 class Flower:
-    def __init__(self, x: float, y: float, color: Tuple[int, int, int]):
+    def __init__(self, x, y, color):
         self.pos = pygame.Vector2(x, y)
         self.color = color
         self.size = 0
@@ -102,7 +101,7 @@ class Flower:
         self.age = 0
         self.petals = random.randint(5, 8)
         
-    def update(self, dt: float):
+    def update(self, dt):
         self.age += dt
         if self.size < self.max_size:
             self.size = min(self.max_size, self.size + self.bloom_speed * dt)
@@ -129,7 +128,7 @@ class Flower:
         pygame.draw.circle(surface, center_color, current_pos, int(self.size * 0.3))
 
 class HarmonyParticle:
-    def __init__(self, x: float, y: float):
+    def __init__(self, x, y):
         self.pos = pygame.Vector2(x, y)
         self.vel = pygame.Vector2(
             random.uniform(-50, 50) * SCALE_FACTOR,
@@ -139,7 +138,7 @@ class HarmonyParticle:
         self.decay_rate = random.uniform(0.5, 1.0)
         self.size = random.uniform(2, 6) * SCALE_FACTOR
         
-    def update(self, dt: float):
+    def update(self, dt):
         self.pos += self.vel * dt
         self.life -= self.decay_rate * dt
         self.vel.y += 20 * dt  # Slight gravity
@@ -155,7 +154,7 @@ class HarmonyParticle:
         pygame.draw.circle(particle_surf, color, (int(self.size), int(self.size)), int(self.size))
         surface.blit(particle_surf, (self.pos.x - self.size, self.pos.y - self.size), special_flags=pygame.BLEND_ALPHA_SDL2)
 
-def calculate_joystick_harmony(p1_x: int, p2_x: int) -> Tuple[float, float, bool]:
+def calculate_joystick_harmony(p1_x, p2_x):
     """Calculate growth direction and harmony from joystick inputs"""
     # Convert to -1 to 1 range
     p1_normalized = (p1_x - 2048) / 2048.0
@@ -182,16 +181,14 @@ def calculate_joystick_harmony(p1_x: int, p2_x: int) -> Tuple[float, float, bool
         return 0, 0, False
 
 def main():
-    global plant_segments
-    
     clock = pygame.time.Clock()
     running = True
     last_time = time.time()
     
     # Plant state
-    plant_segments: List[PlantSegment] = []
-    flowers: List[Flower] = []
-    harmony_particles: List[HarmonyParticle] = []
+    plant_segments = []
+    flowers = []
+    harmony_particles = []
     
     # Growth parameters
     plant_base_x = SCREEN_WIDTH // 2
