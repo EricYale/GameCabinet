@@ -83,9 +83,9 @@ class PlantSegment:
         # Draw segment with slight transparency for organic feel
         color_intensity = 200 + int(55 * math.sin(self.age * 0.5))
         color = (
-            min(255, STEM_COLOR[0] + color_intensity - 200),
-            min(255, STEM_COLOR[1] + color_intensity - 200),
-            min(255, STEM_COLOR[2] + color_intensity - 200)
+            max(0, min(255, STEM_COLOR[0] + color_intensity - 200)),
+            max(0, min(255, STEM_COLOR[1] + color_intensity - 200)),
+            max(0, min(255, STEM_COLOR[2] + color_intensity - 200))
         )
         
         pygame.draw.line(surface, color, self.start_pos, current_end, int(self.thickness))
@@ -124,7 +124,7 @@ class Flower:
             pygame.draw.circle(surface, self.color, petal_pos, int(self.size * 0.4))
             
         # Draw center
-        center_color = tuple(min(255, c + 50) for c in self.color)
+        center_color = tuple(max(0, min(255, c + 50)) for c in self.color)
         pygame.draw.circle(surface, center_color, current_pos, int(self.size * 0.3))
 
 class HarmonyParticle:
@@ -343,7 +343,7 @@ def main():
         # Render
         # Dynamic background based on harmony
         pulse_intensity = int(10 * harmony_level * (1 + math.sin(background_pulse * 2) * 0.3))
-        bg_color = tuple(min(255, c + pulse_intensity) for c in BACKGROUND_BASE)
+        bg_color = tuple(max(0, min(255, c + pulse_intensity)) for c in BACKGROUND_BASE)
         screen.fill(bg_color)
         
         # Draw plant segments
