@@ -315,8 +315,18 @@ def main():
         target_harmony = harmony_strength if in_harmony else 0
         harmony_level += (target_harmony - harmony_level) * dt * 3
         
-        # Check if both switches agree on growth (more forgiving)
-        growth_active = (p1_switch == 1 and p2_switch == 0) or len(plant_segments) == 1  # Always allow initial growth
+        # Debug info for testing (remove this later)
+        if not ser:  # Only when using keyboard
+            debug_info = f"Joy: P1={p1_joy_x} P2={p2_joy_x} | Harmony: {harmony_level:.2f} | Growth: {growth_active}"
+            # print(debug_info)  # Uncomment to see debug info
+        
+        # Check if both switches agree on growth (very forgiving for testing)
+        if ser:
+            # Use switches when hardware is connected
+            growth_active = (p1_switch == 1 and p2_switch == 0)
+        else:
+            # For keyboard testing, always allow growth
+            growth_active = True
         
         # Handle differentiated button functions
         if plant_segments:
@@ -349,11 +359,11 @@ def main():
         # Grow plant
         if (growth_active and in_harmony and harmony_level > 0.1 and 
             current_time - last_growth_time > growth_cooldown and
-            len(plant_segments) < 200):  # Increased limit for branching
+            len(plant_segments) < 200):
             
             if current_growth_point:
                 # Adjust angle based on joystick direction
-                angle_change = direction * 30  # Max 30 degree change
+                angle_change = direction * 30
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
                 
@@ -362,12 +372,12 @@ def main():
                 next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
                 
                 # Check if next segment would go out of bounds
-                margin = 80  # Bigger margin for better visibility
+                margin = 80
                 would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
                                  next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
                 
-                if would_hit_edge and buds:
-                    # Find the first unused bud
+                if would_hit_edge:
+                    # Try to branch to a bud if available
                     next_bud = None
                     for bud in buds:
                         if not bud.used:
@@ -378,8 +388,7 @@ def main():
                         # Switch to growing from this bud
                         next_bud.used = True
                         current_growth_point = plant_segments[next_bud.segment_index]
-                        # Start new branch with neutral angle (will be controlled by joystick)
-                        current_angle = -45  # Slight upward angle to start
+                        current_angle = -45  # Start new branch
                         
                         # Create connecting segment from bud
                         new_segment = PlantSegment(
@@ -387,7 +396,7 @@ def main():
                             next_bud.pos.y,
                             current_angle,
                             segment_length,
-                            base_thickness=6 * SCALE_FACTOR  # Branches are thinner
+                            base_thickness=6 * SCALE_FACTOR
                         )
                         new_segment.segment_index = len(plant_segments)
                         plant_segments.append(new_segment)
@@ -395,13 +404,12 @@ def main():
                         
                         # Add growth particles
                         for _ in range(5):
-                            harmony_particles.append(HarmonyParticle(
-                                next_bud.pos.x, next_bud.pos.y
-                            ))
+                            harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
                         
                         last_growth_time = current_time
-                elif not would_hit_edge:
-                    # Normal growth - safe to grow
+                    # If no buds, just stop growing (plant is complete)
+                else:
+                    # Normal growth - always allow if not hitting edge
                     current_angle = test_angle
                     
                     # Create new segment
@@ -422,7 +430,6 @@ def main():
                         ))
                     
                     last_growth_time = current_time
-                # If would hit edge but no buds available, simply don't grow (wait for buds)
         
         # Update all objects
         for i, segment in enumerate(plant_segments):
