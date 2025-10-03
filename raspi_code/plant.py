@@ -53,7 +53,7 @@ except serial.SerialException:
     print("Serial port not found. Running with keyboard controls.")
 
 class PlantSegment:
-    def __init__(self, x, y, angle, length):
+    def __init__(self, x, y, angle, length, base_thickness=None):
         self.start_pos = pygame.Vector2(x, y)
         self.angle = angle
         self.length = length
@@ -61,14 +61,22 @@ class PlantSegment:
             math.cos(math.radians(angle)) * length,
             math.sin(math.radians(angle)) * length
         )
-        self.thickness = max(3, 15 * SCALE_FACTOR)
+        self.base_thickness = base_thickness if base_thickness else 8 * SCALE_FACTOR
+        self.thickness = self.base_thickness
         self.age = 0
         self.growth_animation = 0
+        self.segment_index = 0
         
     def update(self, dt):
         self.age += dt
         if self.growth_animation < 1.0:
             self.growth_animation = min(1.0, self.growth_animation + dt * 2)
+            
+    def update_thickness(self, total_segments):
+        # Older segments (lower index) get thicker as plant grows
+        age_factor = max(0.5, 1.0 - (self.segment_index / max(1, total_segments)))
+        thickness_boost = (total_segments - self.segment_index) * 0.5 * SCALE_FACTOR
+        self.thickness = self.base_thickness + thickness_boost * age_factor
             
     def draw(self, surface):
         if self.growth_animation <= 0:
@@ -126,6 +134,39 @@ class Flower:
         # Draw center
         center_color = tuple(max(0, min(255, c + 50)) for c in self.color)
         pygame.draw.circle(surface, center_color, current_pos, int(self.size * 0.3))
+
+class Bud:
+    def __init__(self, x, y, segment_index):
+        self.pos = pygame.Vector2(x, y)
+        self.segment_index = segment_index
+        self.size = 0
+        self.max_size = 8 * SCALE_FACTOR
+        self.growth_speed = 4
+        self.age = 0
+        self.used = False
+        self.pulse_offset = random.uniform(0, math.pi * 2)
+        
+    def update(self, dt):
+        self.age += dt
+        if self.size < self.max_size and not self.used:
+            self.size = min(self.max_size, self.size + self.growth_speed * dt)
+            
+    def draw(self, surface):
+        if self.size <= 0:
+            return
+            
+        # Pulsing green bud
+        pulse = 0.8 + 0.2 * math.sin(self.age * 3 + self.pulse_offset)
+        if self.used:
+            pulse *= 0.3  # Dim when used
+            
+        bud_color = tuple(int(c * pulse) for c in BRIGHT_GREEN)
+        pygame.draw.circle(surface, bud_color, self.pos, int(self.size))
+        
+        # Small highlight
+        highlight_pos = self.pos + pygame.Vector2(-2, -2)
+        highlight_color = tuple(min(255, int(c * 1.5)) for c in bud_color)
+        pygame.draw.circle(surface, highlight_color, highlight_pos, int(self.size * 0.4))
 
 class HarmonyParticle:
     def __init__(self, x, y):
@@ -188,7 +229,9 @@ def main():
     # Plant state
     plant_segments = []
     flowers = []
+    buds = []
     harmony_particles = []
+    current_growth_point = None  # Tracks where we're currently growing from
     
     # Growth parameters
     plant_base_x = SCREEN_WIDTH // 2
@@ -212,7 +255,9 @@ def main():
     # Add initial root segment
     root_segment = PlantSegment(plant_base_x, plant_base_y, current_angle, segment_length)
     root_segment.growth_animation = 1.0
+    root_segment.segment_index = 0
     plant_segments.append(root_segment)
+    current_growth_point = root_segment
     
     while running:
         current_time = time.time()
@@ -269,11 +314,12 @@ def main():
         # Check if both switches agree on growth
         growth_active = (p1_switch == 1 and p2_switch == 0)  # Both switches "up"
         
-        # Handle flower planting
+        # Handle differentiated button functions
         if plant_segments:
             tip_segment = plant_segments[-1]
             tip_pos = tip_segment.end_pos
             
+            # Player 1: Plant flowers
             if p1_button == 0 and not p1_button_pressed:
                 color = random.choice(FLOWER_COLORS)
                 flowers.append(Flower(tip_pos.x, tip_pos.y, color))
@@ -284,11 +330,12 @@ def main():
             elif p1_button == 1:
                 p1_button_pressed = False
                 
+            # Player 2: Create buds (new growth points)
             if p2_button == 0 and not p2_button_pressed:
-                color = random.choice(FLOWER_COLORS)
-                flowers.append(Flower(tip_pos.x, tip_pos.y, color))
+                bud = Bud(tip_pos.x, tip_pos.y, len(plant_segments) - 1)
+                buds.append(bud)
                 # Add harmony particles
-                for _ in range(5):
+                for _ in range(3):
                     harmony_particles.append(HarmonyParticle(tip_pos.x, tip_pos.y))
                 p2_button_pressed = True
             elif p2_button == 1:
@@ -297,41 +344,78 @@ def main():
         # Grow plant
         if (growth_active and in_harmony and harmony_level > 0.3 and 
             current_time - last_growth_time > growth_cooldown and
-            len(plant_segments) < 100):  # Limit plant size
+            len(plant_segments) < 200):  # Increased limit for branching
             
-            if plant_segments:
-                last_segment = plant_segments[-1]
+            if current_growth_point:
+                # Check if we hit screen edges
+                tip_pos = current_growth_point.end_pos
+                hit_edge = (tip_pos.x < 50 or tip_pos.x > SCREEN_WIDTH - 50 or 
+                           tip_pos.y < 50 or tip_pos.y > SCREEN_HEIGHT - 50)
                 
-                # Adjust angle based on joystick direction
-                angle_change = direction * 30  # Max 30 degree change
-                current_angle += angle_change
-                
-                # Keep angle reasonable (don't grow straight down)
-                current_angle = max(-160, min(-20, current_angle))
-                
-                # Create new segment
-                new_segment = PlantSegment(
-                    last_segment.end_pos.x,
-                    last_segment.end_pos.y,
-                    current_angle,
-                    segment_length
-                )
-                plant_segments.append(new_segment)
+                if hit_edge and buds:
+                    # Find the first unused bud
+                    next_bud = None
+                    for bud in buds:
+                        if not bud.used:
+                            next_bud = bud
+                            break
+                    
+                    if next_bud:
+                        # Switch to growing from this bud
+                        next_bud.used = True
+                        current_growth_point = plant_segments[next_bud.segment_index]
+                        # Reset angle to grow downward from bud
+                        current_angle = 90  # Downward
+                        
+                        # Create connecting segment from bud
+                        new_segment = PlantSegment(
+                            next_bud.pos.x,
+                            next_bud.pos.y,
+                            current_angle,
+                            segment_length,
+                            base_thickness=6 * SCALE_FACTOR  # Branches are thinner
+                        )
+                        new_segment.segment_index = len(plant_segments)
+                        plant_segments.append(new_segment)
+                        current_growth_point = new_segment
+                else:
+                    # Normal growth
+                    # Adjust angle based on joystick direction
+                    angle_change = direction * 30  # Max 30 degree change
+                    current_angle += angle_change
+                    
+                    # Keep angle reasonable
+                    current_angle = max(-160, min(160, current_angle))
+                    
+                    # Create new segment
+                    new_segment = PlantSegment(
+                        current_growth_point.end_pos.x,
+                        current_growth_point.end_pos.y,
+                        current_angle,
+                        segment_length
+                    )
+                    new_segment.segment_index = len(plant_segments)
+                    plant_segments.append(new_segment)
+                    current_growth_point = new_segment
                 
                 # Add growth particles
                 for _ in range(3):
                     harmony_particles.append(HarmonyParticle(
-                        last_segment.end_pos.x, last_segment.end_pos.y
+                        current_growth_point.end_pos.x, current_growth_point.end_pos.y
                     ))
                 
                 last_growth_time = current_time
         
         # Update all objects
-        for segment in plant_segments:
+        for i, segment in enumerate(plant_segments):
             segment.update(dt)
+            segment.update_thickness(len(plant_segments))
         
         for flower in flowers:
             flower.update(dt)
+            
+        for bud in buds:
+            bud.update(dt)
         
         harmony_particles = [p for p in harmony_particles if p.life > 0]
         for particle in harmony_particles:
@@ -353,14 +437,18 @@ def main():
         # Draw flowers
         for flower in flowers:
             flower.draw(screen)
+            
+        # Draw buds
+        for bud in buds:
+            bud.draw(screen)
         
         # Draw harmony particles
         for particle in harmony_particles:
             particle.draw(screen)
         
-        # Draw harmony indicator (subtle glow around plant tip)
-        if plant_segments and harmony_level > 0.1:
-            tip = plant_segments[-1].end_pos
+        # Draw harmony indicator (subtle glow around current growth point)
+        if current_growth_point and harmony_level > 0.1:
+            tip = current_growth_point.end_pos
             glow_radius = int(30 * harmony_level * SCALE_FACTOR)
             glow_alpha = int(50 * harmony_level)
             
