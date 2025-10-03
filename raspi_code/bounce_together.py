@@ -1,14 +1,15 @@
-# This is a cooperative rhythm game where two players must work together to keep a
-# bouncing ball in the air by timing their paddle movements perfectly. Player 1 controls
-# the left paddle and Player 2 controls the right paddle. The ball bounces between them
-# and they must coordinate to keep it bouncing higher and higher. Success creates a
-# satisfying rhythm and visual feedback that makes cooperation feel natural and rewarding.
+# This is a cooperative ball-bouncing game where two players work together to keep a
+# ball bouncing in the center of the screen. Each player controls a paddle positioned
+# on their side of the screen - Player 1 at the bottom, Player 2 at the top. The ball
+# bounces between the paddles and players must coordinate to keep it in play. The
+# orientation-agnostic design ensures both players have the same view regardless of
+# which side of the cabinet they're sitting on.
 
-# The game is simple: move your paddle to hit the ball when it comes to your side.
-# Good timing makes the ball bounce higher and changes its color. Perfect coordination
-# between both players creates combo streaks, particle effects, and satisfying audio-visual
-# feedback. The goal is simply to keep the ball bouncing as long as possible and see
-# how high you can make it go together. Miss the ball and it falls - game over!
+# Players use their joystick X-axis to move their paddle left and right along their
+# edge of the screen. When the ball approaches their paddle, they must position it
+# correctly to bounce the ball back toward their partner. Good timing and positioning
+# creates longer rallies, combo streaks, and satisfying visual effects. The goal is
+# to work together to achieve the highest bounce count possible before the ball escapes.
 
 import pygame
 import serial
@@ -102,32 +103,32 @@ class Ball:
             pygame.draw.circle(surface, glow_color, (int(self.x), int(self.y)), glow_radius, 3)
 
 class Paddle:
-    def __init__(self, x, color, player_id):
-        self.x = x
-        self.y = SCREEN_HEIGHT // 2
-        self.target_y = self.y
-        self.width = 20 * SCALE_FACTOR
-        self.height = 100 * SCALE_FACTOR
+    def __init__(self, y, color, player_id):
+        self.x = SCREEN_WIDTH // 2
+        self.y = y
+        self.target_x = self.x
+        self.width = 120 * SCALE_FACTOR
+        self.height = 20 * SCALE_FACTOR
         self.color = color
         self.player_id = player_id
         self.speed = 0
-        self.last_y = self.y
+        self.last_x = self.x
         self.hits = 0
         self.perfect_hits = 0
         
     def update(self, dt, joy_input):
-        self.target_y = SCREEN_HEIGHT // 2 + joy_input * (SCREEN_HEIGHT // 3)
-        self.target_y = max(self.height // 2, min(SCREEN_HEIGHT - self.height // 2, self.target_y))
+        self.target_x = SCREEN_WIDTH // 2 + joy_input * (SCREEN_WIDTH // 3)
+        self.target_x = max(self.width // 2, min(SCREEN_WIDTH - self.width // 2, self.target_x))
         
-        self.last_y = self.y
-        self.y += (self.target_y - self.y) * 8 * dt
-        self.speed = (self.y - self.last_y) / dt
+        self.last_x = self.x
+        self.x += (self.target_x - self.x) * 8 * dt
+        self.speed = (self.x - self.last_x) / dt
         
     def check_collision(self, ball):
         if (abs(ball.x - self.x) < self.width // 2 + ball.radius and
             abs(ball.y - self.y) < self.height // 2 + ball.radius):
             
-            hit_center = abs(ball.y - self.y) < self.height // 4
+            hit_center = abs(ball.x - self.x) < self.width // 4
             
             if hit_center and abs(self.speed) > 50:
                 self.perfect_hits += 1
@@ -166,9 +167,9 @@ def draw_score(surface, ball, p1_paddle, p2_paddle):
 
 def draw_instructions(surface):
     instructions = [
-        "Move your joystick left/right to control your paddle",
-        "Hit the ball when it comes to your side", 
-        "Hit it in the center while moving for PERFECT hits",
+        "Player 1 (Blue): Bottom paddle - move joystick left/right",
+        "Player 2 (Red): Top paddle - move joystick left/right", 
+        "Hit ball in center of paddle while moving for PERFECT hits",
         "Work together to keep the ball bouncing!"
     ]
     
@@ -183,8 +184,8 @@ def main():
     game_active = True
     
     ball = Ball()
-    p1_paddle = Paddle(100 * SCALE_FACTOR, BLUE, 1)
-    p2_paddle = Paddle(SCREEN_WIDTH - 100 * SCALE_FACTOR, RED, 2)
+    p1_paddle = Paddle(SCREEN_HEIGHT - 50 * SCALE_FACTOR, BLUE, 1)
+    p2_paddle = Paddle(50 * SCALE_FACTOR, RED, 2)
     
     particles = []
     game_over_time = 0
@@ -243,8 +244,8 @@ def main():
             
             if any_input:
                 ball = Ball()
-                p1_paddle = Paddle(100 * SCALE_FACTOR, BLUE, 1)
-                p2_paddle = Paddle(SCREEN_WIDTH - 100 * SCALE_FACTOR, RED, 2)
+                p1_paddle = Paddle(SCREEN_HEIGHT - 50 * SCALE_FACTOR, BLUE, 1)
+                p2_paddle = Paddle(50 * SCALE_FACTOR, RED, 2)
                 particles = []
                 game_active = True
         
@@ -275,6 +276,9 @@ def main():
             if ball.x < 0 or ball.x > SCREEN_WIDTH:
                 ball.vx = -ball.vx
                 ball.x = max(ball.radius, min(SCREEN_WIDTH - ball.radius, ball.x))
+            
+            if ball.y < 0 or ball.y > SCREEN_HEIGHT:
+                game_active = False
         else:
             if game_over_time == 0:
                 game_over_time = current_time
@@ -287,7 +291,7 @@ def main():
         
         screen.fill(BLACK)
         
-        pygame.draw.line(screen, WHITE, (SCREEN_WIDTH // 2, 0), (SCREEN_WIDTH // 2, SCREEN_HEIGHT), 2)
+        pygame.draw.line(screen, WHITE, (0, SCREEN_HEIGHT // 2), (SCREEN_WIDTH, SCREEN_HEIGHT // 2), 2)
         
         if game_active:
             ball.draw(screen)
