@@ -142,9 +142,10 @@ def main():
     
     # Growth parameters
     plant_base_x = SCREEN_WIDTH // 2
-    plant_base_y = SCREEN_HEIGHT - 50 * SCALE_FACTOR
-    current_angle = -90  # Start growing upward
     segment_length = 25 * SCALE_FACTOR
+    margin = int(80 * SCALE_FACTOR)  # Scale margin with screen size
+    plant_base_y = SCREEN_HEIGHT - (margin + int(2 * segment_length))  # Start outside margin
+    current_angle = -90  # Start growing upward
     
     # Game state
     growth_frame_counter = 0
@@ -227,24 +228,35 @@ def main():
             current_angle += angle_change
             current_angle = max(-160, min(160, current_angle))
             
-            # Check if would go off screen
+            # Check if would go off screen (only block if moving toward edge)
             next_x = current_growth_point.end_pos.x + math.cos(math.radians(current_angle)) * segment_length
             next_y = current_growth_point.end_pos.y + math.sin(math.radians(current_angle)) * segment_length
             
-            margin = 80
-            would_hit_edge = (next_x < margin or next_x > SCREEN_WIDTH - margin or 
-                             next_y < margin or next_y > SCREEN_HEIGHT - margin)
+            # Direction components
+            dx = math.cos(math.radians(current_angle))
+            dy = math.sin(math.radians(current_angle))
             
-            if would_hit_edge and buds:
-                # Branch to first unused bud
-                for bud in buds:
-                    if not bud.used:
-                        bud.used = True
-                        current_growth_point = PlantSegment(bud.pos.x, bud.pos.y, -45, segment_length)
-                        plant_segments.append(current_growth_point)
-                        current_angle = -45
-                        break
-            elif not would_hit_edge:
+            would_hit_edge = (
+                (next_x < margin and dx < 0) or                      # moving left into left edge
+                (next_x > SCREEN_WIDTH - margin and dx > 0) or       # moving right into right edge
+                (next_y < margin and dy < 0) or                      # moving up into top edge
+                (next_y > SCREEN_HEIGHT - margin and dy > 0)         # moving down into bottom edge
+            )
+            
+            if would_hit_edge:
+                if buds:
+                    # Branch to first unused bud
+                    for bud in buds:
+                        if not bud.used:
+                            bud.used = True
+                            current_growth_point = PlantSegment(bud.pos.x, bud.pos.y, -45, segment_length)
+                            plant_segments.append(current_growth_point)
+                            current_angle = -45
+                            break
+                else:
+                    # No buds available - nudge angle upward as fallback
+                    current_angle = -90
+            else:
                 # Normal growth
                 new_segment = PlantSegment(
                     current_growth_point.end_pos.x,
