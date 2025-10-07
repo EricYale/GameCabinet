@@ -79,15 +79,15 @@ class CelestialBody:
             diff = well['pos'] - self.pos
             dist = diff.length()
             if dist > 1:
-                strength = well['strength'] * 500
+                strength = well['strength'] * 3000
                 force_mag = strength / (dist * dist)
                 force += diff.normalize() * force_mag
         
-        # Gentle center pull for stability
+        # Strong center pull for stability
         to_center = center_pos - self.pos
         center_dist = to_center.length()
         if center_dist > 1:
-            center_force = to_center.normalize() * (center_dist * 0.001)
+            center_force = to_center.normalize() * (center_dist * 0.02)
             force += center_force
         
         # Verlet integration
@@ -280,7 +280,7 @@ def main():
             
             # Add some vertical variation
             angle += random.uniform(-0.3, 0.3)
-            speed = random.uniform(80, 120)
+            speed = random.uniform(30, 50)
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
@@ -305,7 +305,7 @@ def main():
             
             # Add some vertical variation
             angle += random.uniform(-0.3, 0.3)
-            speed = random.uniform(80, 120)
+            speed = random.uniform(30, 50)
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
