@@ -58,6 +58,12 @@ GAMES = [
         "description": "Cooperative plant growing",
         "file": "plant.py",
         "color": (100, 255, 150)
+    },
+    {
+        "name": "Tug of Space",
+        "description": "Orbital physics balance",
+        "file": "tug_of_space.py",
+        "color": (150, 100, 255)
     }
 ]
 
@@ -69,10 +75,10 @@ class GameCard:
         self.color = game_data["color"]
         self.index = index
         
-        # Calculate position and size - scaled for smaller screens
-        card_width = min(200, SCREEN_WIDTH // 3)
-        card_height = min(180, SCREEN_HEIGHT // 3)
-        spacing = 40
+        # Calculate position and size - simple layout for small screens
+        card_width = min(180, SCREEN_WIDTH // 3)
+        card_height = min(140, SCREEN_HEIGHT // 3)
+        spacing = 30
         total_width = (card_width * total_games) + (spacing * (total_games - 1))
         start_x = (SCREEN_WIDTH - total_width) // 2
         
@@ -80,35 +86,22 @@ class GameCard:
         self.y = (SCREEN_HEIGHT - card_height) // 2
         self.width = card_width
         self.height = card_height
-        self.target_scale = 1.0
-        self.current_scale = 1.0
-        
-    def update(self, dt, is_selected):
-        # Animate scale
-        self.target_scale = 1.2 if is_selected else 1.0
-        scale_diff = self.target_scale - self.current_scale
-        self.current_scale += scale_diff * 5 * dt
         
     def draw(self, surface, is_selected):
-        # Calculate scaled dimensions
-        scaled_width = int(self.width * self.current_scale)
-        scaled_height = int(self.height * self.current_scale)
-        scaled_x = self.x + (self.width - scaled_width) // 2
-        scaled_y = self.y + (self.height - scaled_height) // 2
-        
+        # Simple non-animated draw
         # Draw card background
         bg_color = SELECTED_BG if is_selected else MENU_BG
-        card_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, scaled_height)
-        pygame.draw.rect(surface, bg_color, card_rect, border_radius=15)
+        card_rect = pygame.Rect(self.x, self.y, self.width, self.height)
+        pygame.draw.rect(surface, bg_color, card_rect, border_radius=10)
         
         # Draw colored accent bar at top
-        accent_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, 6)
-        pygame.draw.rect(surface, self.color, accent_rect, border_top_left_radius=15, border_top_right_radius=15)
+        accent_rect = pygame.Rect(self.x, self.y, self.width, 5)
+        pygame.draw.rect(surface, self.color, accent_rect, border_top_left_radius=10, border_top_right_radius=10)
         
         # Draw game name with text fitting
-        max_name_width = scaled_width - 20
-        name_font_size = 32
-        name_font_render = game_font
+        max_name_width = self.width - 20
+        name_font_size = 28
+        name_font_render = pygame.font.Font(None, name_font_size)
         name_surf = name_font_render.render(self.name, True, HIGHLIGHT_COLOR if is_selected else TEXT_COLOR)
         
         while name_surf.get_width() > max_name_width and name_font_size > 16:
@@ -116,33 +109,33 @@ class GameCard:
             name_font_render = pygame.font.Font(None, name_font_size)
             name_surf = name_font_render.render(self.name, True, HIGHLIGHT_COLOR if is_selected else TEXT_COLOR)
         
-        name_rect = name_surf.get_rect(center=(self.x + self.width // 2, scaled_y + 50))
+        name_rect = name_surf.get_rect(center=(self.x + self.width // 2, self.y + 40))
         surface.blit(name_surf, name_rect)
         
         # Draw description with text fitting
-        max_desc_width = scaled_width - 20
-        desc_font_size = 24
-        desc_font_render = subtitle_font
+        max_desc_width = self.width - 20
+        desc_font_size = 20
+        desc_font_render = pygame.font.Font(None, desc_font_size)
         desc_surf = desc_font_render.render(self.description, True, TEXT_COLOR)
         
-        while desc_surf.get_width() > max_desc_width and desc_font_size > 14:
+        while desc_surf.get_width() > max_desc_width and desc_font_size > 12:
             desc_font_size -= 2
             desc_font_render = pygame.font.Font(None, desc_font_size)
             desc_surf = desc_font_render.render(self.description, True, TEXT_COLOR)
         
-        desc_rect = desc_surf.get_rect(center=(self.x + self.width // 2, scaled_y + 90))
+        desc_rect = desc_surf.get_rect(center=(self.x + self.width // 2, self.y + 70))
         surface.blit(desc_surf, desc_rect)
         
-        # Draw "Press to Play" if selected
+        # Draw "Press!" if selected
         if is_selected:
             play_surf = subtitle_font.render("Press!", True, HIGHLIGHT_COLOR)
-            play_rect = play_surf.get_rect(center=(self.x + self.width // 2, scaled_y + scaled_height - 30))
+            play_rect = play_surf.get_rect(center=(self.x + self.width // 2, self.y + self.height - 25))
             surface.blit(play_surf, play_rect)
         
         # Draw border
         border_color = HIGHLIGHT_COLOR if is_selected else ACCENT_COLOR
         border_width = 3 if is_selected else 2
-        pygame.draw.rect(surface, border_color, card_rect, width=border_width, border_radius=15)
+        pygame.draw.rect(surface, border_color, card_rect, width=border_width, border_radius=10)
 
 def launch_game(game_file):
     """Launch the selected game"""
@@ -229,10 +222,6 @@ def main():
         elif p1_button == 1 and p2_button == 1:
             button_pressed = False
         
-        # Update game cards
-        for i, card in enumerate(game_cards):
-            card.update(dt, i == selected_index)
-        
         # Draw
         screen.fill(BACKGROUND)
         
@@ -250,19 +239,18 @@ def main():
         for i, card in enumerate(game_cards):
             card.draw(screen, i == selected_index)
         
-        # Draw navigation arrows
-        if len(GAMES) > 1:
+        # Draw simple navigation indicators
+        if len(GAMES) > 1 and selected_index > 0:
             # Left arrow
-            if selected_index > 0:
-                arrow_surf = subtitle_font.render("◀", True, ACCENT_COLOR)
-                arrow_rect = arrow_surf.get_rect(center=(20, SCREEN_HEIGHT // 2))
-                screen.blit(arrow_surf, arrow_rect)
-            
+            arrow_surf = game_font.render("<", True, HIGHLIGHT_COLOR)
+            arrow_rect = arrow_surf.get_rect(center=(15, SCREEN_HEIGHT // 2))
+            screen.blit(arrow_surf, arrow_rect)
+        
+        if len(GAMES) > 1 and selected_index < len(GAMES) - 1:
             # Right arrow
-            if selected_index < len(GAMES) - 1:
-                arrow_surf = subtitle_font.render("▶", True, ACCENT_COLOR)
-                arrow_rect = arrow_surf.get_rect(center=(SCREEN_WIDTH - 20, SCREEN_HEIGHT // 2))
-                screen.blit(arrow_surf, arrow_rect)
+            arrow_surf = game_font.render(">", True, HIGHLIGHT_COLOR)
+            arrow_rect = arrow_surf.get_rect(center=(SCREEN_WIDTH - 15, SCREEN_HEIGHT // 2))
+            screen.blit(arrow_surf, arrow_rect)
         
         # Draw footer
         footer_surf = subtitle_font.render("ESC to exit", True, (100, 100, 120))

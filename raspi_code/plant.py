@@ -296,10 +296,10 @@ def main():
         # Calculate joystick direction and speed from average
         angle_change, growth_speed = calculate_joystick_direction_and_speed(p1_joy_x, p2_joy_x)
         
-
-        
-        # SIMPLE: Always grow - no switch logic
-        growth_active = True
+        # Check if both players have switches in grow position
+        # P1 switch: 1 = UP (grow), 0 = DOWN (pause)
+        # P2 switch: 0 = UP (grow), 1 = DOWN (pause) - reversed!
+        growth_active = (p1_switch == 1 and p2_switch == 0)
         
         # Handle differentiated button functions
         if plant_segments:
@@ -329,9 +329,10 @@ def main():
             elif p2_button == 1:
                 p2_button_pressed = False
         
-        # SIMPLE GROWTH: Grow with joystick direction
-        growth_frame_counter += 1
-        if growth_frame_counter % frames_per_growth == 0:
+        # SIMPLE GROWTH: Grow with joystick direction (only if growth_active)
+        if growth_active:
+            growth_frame_counter += 1
+            if growth_frame_counter % frames_per_growth == 0:
                 # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
