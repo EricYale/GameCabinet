@@ -1,8 +1,14 @@
 """
-Game Cabinet Menu System
-A visual menu to select and launch different games using joystick controls.
-- Use joystick left/right to navigate between games
-- Press button to launch selected game
+Game Cabinet Menu System - Main launcher for the arcade cabinet.
+Players use their joysticks left/right to navigate between available games.
+Either player can press their button to launch the selected game. The menu
+displays game cards with names and descriptions, scaling up the selected game.
+When a game is launched, the menu exits and runs that game's Python file.
+
+Implementation uses pygame for rendering with fullscreen display. Serial input
+from ESP32 provides joystick X positions for both players and button states.
+Navigation works when either player moves their joystick beyond deadzone
+thresholds. Text is scaled to fit within card boundaries to prevent overflow.
 """
 
 import pygame
@@ -99,19 +105,37 @@ class GameCard:
         accent_rect = pygame.Rect(scaled_x, scaled_y, scaled_width, 6)
         pygame.draw.rect(surface, self.color, accent_rect, border_top_left_radius=15, border_top_right_radius=15)
         
-        # Draw game name
-        name_surf = game_font.render(self.name, True, HIGHLIGHT_COLOR if is_selected else TEXT_COLOR)
+        # Draw game name with text fitting
+        max_name_width = scaled_width - 20
+        name_font_size = 32
+        name_font_render = game_font
+        name_surf = name_font_render.render(self.name, True, HIGHLIGHT_COLOR if is_selected else TEXT_COLOR)
+        
+        while name_surf.get_width() > max_name_width and name_font_size > 16:
+            name_font_size -= 2
+            name_font_render = pygame.font.Font(None, name_font_size)
+            name_surf = name_font_render.render(self.name, True, HIGHLIGHT_COLOR if is_selected else TEXT_COLOR)
+        
         name_rect = name_surf.get_rect(center=(self.x + self.width // 2, scaled_y + 50))
         surface.blit(name_surf, name_rect)
         
-        # Draw description
-        desc_surf = subtitle_font.render(self.description, True, TEXT_COLOR)
+        # Draw description with text fitting
+        max_desc_width = scaled_width - 20
+        desc_font_size = 24
+        desc_font_render = subtitle_font
+        desc_surf = desc_font_render.render(self.description, True, TEXT_COLOR)
+        
+        while desc_surf.get_width() > max_desc_width and desc_font_size > 14:
+            desc_font_size -= 2
+            desc_font_render = pygame.font.Font(None, desc_font_size)
+            desc_surf = desc_font_render.render(self.description, True, TEXT_COLOR)
+        
         desc_rect = desc_surf.get_rect(center=(self.x + self.width // 2, scaled_y + 90))
         surface.blit(desc_surf, desc_rect)
         
         # Draw "Press to Play" if selected
         if is_selected:
-            play_surf = subtitle_font.render("Press to Play", True, HIGHLIGHT_COLOR)
+            play_surf = subtitle_font.render("Press!", True, HIGHLIGHT_COLOR)
             play_rect = play_surf.get_rect(center=(self.x + self.width // 2, scaled_y + scaled_height - 30))
             surface.blit(play_surf, play_rect)
         
@@ -159,8 +183,8 @@ def main():
                     running = False
         
         # Read serial input
-        joy_x = 2048  # Default neutral
-        button = 1     # Default unpressed
+        p1_joy_x, p2_joy_x = 2048, 2048  # Default neutral
+        p1_button, p2_button = 1, 1       # Default unpressed
         
         if ser:
             while ser.in_waiting:
@@ -168,38 +192,41 @@ def main():
                     line = ser.readline().decode('utf-8').rstrip()
                     if line:
                         values = line.split("/")
-                        if len(values) >= 6:
-                            # Use player 1 controls for menu navigation
-                            joy_x = int(values[1])  # P1 joystick X
-                            button = int(values[4])  # P1 button
+                        if len(values) >= 8:
+                            p2_joy_x = int(values[1])
+                            p1_joy_x = int(values[3])
+                            p1_button = int(values[4])
+                            p2_button = int(values[5])
                 except (ValueError, IndexError):
                     pass
         else:
             # Keyboard fallback
             keys = pygame.key.get_pressed()
             if keys[pygame.K_LEFT] or keys[pygame.K_a]:
-                joy_x = 500
+                p1_joy_x = 500
             if keys[pygame.K_RIGHT] or keys[pygame.K_d]:
-                joy_x = 3500
+                p1_joy_x = 3500
             if keys[pygame.K_SPACE] or keys[pygame.K_RETURN]:
-                button = 0
+                p1_button = 0
         
-        # Handle joystick navigation (with deadzone)
-        if joy_x < 1500 and not joystick_moved:  # Left
+        # Handle joystick navigation - either player can navigate
+        combined_joy = (p1_joy_x + p2_joy_x) / 2
+        
+        if (p1_joy_x < 1500 or p2_joy_x < 1500) and not joystick_moved:
             selected_index = (selected_index - 1) % len(GAMES)
             joystick_moved = True
-        elif joy_x > 2500 and not joystick_moved:  # Right
+        elif (p1_joy_x > 2500 or p2_joy_x > 2500) and not joystick_moved:
             selected_index = (selected_index + 1) % len(GAMES)
             joystick_moved = True
-        elif 1500 <= joy_x <= 2500:  # Center (reset)
+        elif p1_joy_x >= 1500 and p1_joy_x <= 2500 and p2_joy_x >= 1500 and p2_joy_x <= 2500:
             joystick_moved = False
         
-        # Handle button press to launch game
-        if button == 0 and not button_pressed:
+        # Handle button press - either player can launch
+        if (p1_button == 0 or p2_button == 0) and not button_pressed:
             selected_game = GAMES[selected_index]
             launch_game(selected_game["file"])
             button_pressed = True
-        elif button == 1:
+        elif p1_button == 1 and p2_button == 1:
             button_pressed = False
         
         # Update game cards
@@ -215,7 +242,7 @@ def main():
         screen.blit(title_surf, title_rect)
         
         # Draw subtitle (simplified for small screens)
-        subtitle_surf = subtitle_font.render("Joystick: Select • Button: Play", True, TEXT_COLOR)
+        subtitle_surf = subtitle_font.render("← Joystick → | Button: Play", True, TEXT_COLOR)
         subtitle_rect = subtitle_surf.get_rect(center=(SCREEN_WIDTH // 2, 60))
         screen.blit(subtitle_surf, subtitle_rect)
         

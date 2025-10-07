@@ -331,21 +331,16 @@ def main():
         # SIMPLE GROWTH: Grow with joystick direction
         growth_frame_counter += 1
         if True:
-                # Apply joystick direction change
-                test_angle = current_angle + angle_change
-                test_angle = max(-160, min(160, test_angle))
+                # Check if current tip is already at or near edge
+                current_tip_x = current_growth_point.end_pos.x
+                current_tip_y = current_growth_point.end_pos.y
+                margin = 50
                 
-                # Calculate where the next segment would end up
-                next_end_x = current_growth_point.end_pos.x + math.cos(math.radians(test_angle)) * segment_length
-                next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
+                current_at_edge = (current_tip_x < margin or current_tip_x > SCREEN_WIDTH - margin or 
+                                  current_tip_y < margin or current_tip_y > SCREEN_HEIGHT - margin)
                 
-                # Check if next segment would go out of bounds
-                margin = 80
-                would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
-                                 next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
-                
-                if would_hit_edge and buds:
-                    # Only branch if buds are available AND we would hit edge
+                # If at edge and buds available, jump to earliest bud immediately
+                if current_at_edge and buds:
                     next_bud = None
                     for bud in buds:
                         if not bud.used:
@@ -353,12 +348,10 @@ def main():
                             break
                     
                     if next_bud:
-                        # Switch to growing from this bud
                         next_bud.used = True
                         current_growth_point = plant_segments[next_bud.segment_index]
-                        current_angle = -45  # Start new branch
+                        current_angle = -45
                         
-                        # Create connecting segment from bud
                         new_segment = PlantSegment(
                             next_bud.pos.x,
                             next_bud.pos.y,
@@ -370,15 +363,24 @@ def main():
                         plant_segments.append(new_segment)
                         current_growth_point = new_segment
                         
-                        # Add growth particles
                         for _ in range(5):
                             harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
-                        
-                elif not would_hit_edge:
-                    # Normal growth - ALWAYS allow if not hitting edge (regardless of buds)
+                
+                # Apply joystick direction change
+                test_angle = current_angle + angle_change
+                test_angle = max(-160, min(160, test_angle))
+                
+                # Calculate where the next segment would end up
+                next_end_x = current_growth_point.end_pos.x + math.cos(math.radians(test_angle)) * segment_length
+                next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
+                
+                # Check if next segment would go out of bounds
+                would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
+                                 next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
+                
+                if not would_hit_edge:
                     current_angle = test_angle
                     
-                    # Create new segment
                     new_segment = PlantSegment(
                         current_growth_point.end_pos.x,
                         current_growth_point.end_pos.y,
@@ -389,12 +391,10 @@ def main():
                     plant_segments.append(new_segment)
                     current_growth_point = new_segment
                     
-                    # Add growth particles
                     for _ in range(3):
                         harmony_particles.append(HarmonyParticle(
                             current_growth_point.end_pos.x, current_growth_point.end_pos.y
                         ))
-                # If would hit edge but no buds available, just stop growing naturally
         
         # Update all objects
         for i, segment in enumerate(plant_segments):
