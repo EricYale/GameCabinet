@@ -226,7 +226,7 @@ def main():
     
     # Growth parameters
     plant_base_x = SCREEN_WIDTH // 2
-    plant_base_y = SCREEN_HEIGHT - 50 * SCALE_FACTOR
+    plant_base_y = SCREEN_HEIGHT - 100 * SCALE_FACTOR
     current_angle = -90  # Start growing upward
     segment_length = 25 * SCALE_FACTOR
     
@@ -234,6 +234,7 @@ def main():
     growth_active = False
     background_pulse = 0.0
     growth_frame_counter = 0
+    frames_per_growth = 5  # Grow every 5 frames for slower growth
     
     # Input states
     p1_button_pressed = False
@@ -330,7 +331,7 @@ def main():
         
         # SIMPLE GROWTH: Grow with joystick direction
         growth_frame_counter += 1
-        if True:
+        if growth_frame_counter % frames_per_growth == 0:
                 # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
