@@ -331,41 +331,6 @@ def main():
         # SIMPLE GROWTH: Grow with joystick direction
         growth_frame_counter += 1
         if True:
-                # Check if current tip is already at or near edge
-                current_tip_x = current_growth_point.end_pos.x
-                current_tip_y = current_growth_point.end_pos.y
-                margin = 50
-                
-                current_at_edge = (current_tip_x < margin or current_tip_x > SCREEN_WIDTH - margin or 
-                                  current_tip_y < margin or current_tip_y > SCREEN_HEIGHT - margin)
-                
-                # If at edge and buds available, jump to earliest bud immediately
-                if current_at_edge and buds:
-                    next_bud = None
-                    for bud in buds:
-                        if not bud.used:
-                            next_bud = bud
-                            break
-                    
-                    if next_bud:
-                        next_bud.used = True
-                        current_growth_point = plant_segments[next_bud.segment_index]
-                        current_angle = -45
-                        
-                        new_segment = PlantSegment(
-                            next_bud.pos.x,
-                            next_bud.pos.y,
-                            current_angle,
-                            segment_length,
-                            base_thickness=6 * SCALE_FACTOR
-                        )
-                        new_segment.segment_index = len(plant_segments)
-                        plant_segments.append(new_segment)
-                        current_growth_point = new_segment
-                        
-                        for _ in range(5):
-                            harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
-                
                 # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
@@ -375,10 +340,41 @@ def main():
                 next_end_y = current_growth_point.end_pos.y + math.sin(math.radians(test_angle)) * segment_length
                 
                 # Check if next segment would go out of bounds
+                margin = 50
                 would_hit_edge = (next_end_x < margin or next_end_x > SCREEN_WIDTH - margin or 
                                  next_end_y < margin or next_end_y > SCREEN_HEIGHT - margin)
                 
-                if not would_hit_edge:
+                if would_hit_edge:
+                    # Hit edge - try to branch to a bud if available
+                    if buds:
+                        next_bud = None
+                        for bud in buds:
+                            if not bud.used:
+                                next_bud = bud
+                                break
+                        
+                        if next_bud:
+                            # Branch to this bud
+                            next_bud.used = True
+                            current_growth_point = plant_segments[next_bud.segment_index]
+                            current_angle = -45
+                            
+                            new_segment = PlantSegment(
+                                next_bud.pos.x,
+                                next_bud.pos.y,
+                                current_angle,
+                                segment_length,
+                                base_thickness=6 * SCALE_FACTOR
+                            )
+                            new_segment.segment_index = len(plant_segments)
+                            plant_segments.append(new_segment)
+                            current_growth_point = new_segment
+                            
+                            for _ in range(5):
+                                harmony_particles.append(HarmonyParticle(next_bud.pos.x, next_bud.pos.y))
+                    # If no buds, just stop growing (don't add segment)
+                else:
+                    # Not hitting edge - grow normally
                     current_angle = test_angle
                     
                     new_segment = PlantSegment(
