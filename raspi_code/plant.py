@@ -273,8 +273,8 @@ def main():
                     if line:
                         values = line.split("/")
                         if len(values) == 8:
-                            p2_joy_x = int(values[1])
-                            p1_joy_x = int(values[3])
+                            p1_joy_x = int(values[1])
+                            p2_joy_x = int(values[3])
                             p1_button = int(values[4])
                             p2_button = int(values[5])
                             p1_switch = int(values[6])
@@ -328,9 +328,9 @@ def main():
             elif p2_button == 1:
                 p2_button_pressed = False
         
-        # SIMPLE GROWTH: Just grow every 10 frames with joystick direction
+        # SIMPLE GROWTH: Grow with joystick direction
         growth_frame_counter += 1
-        if growth_frame_counter % 10 == 0:
+        if True:
                 # Apply joystick direction change
                 test_angle = current_angle + angle_change
                 test_angle = max(-160, min(160, test_angle))
