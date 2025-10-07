@@ -122,11 +122,17 @@ def calculate_direction_from_joysticks(p1_x, p2_x):
     p1_normalized = (p1_x - 2048) / 2048.0
     p2_normalized = (p2_x - 2048) / 2048.0
     
+    # Apply deadzone to reduce jitter
+    if abs(p1_normalized) < 0.1:
+        p1_normalized = 0
+    if abs(p2_normalized) < 0.1:
+        p2_normalized = 0
+    
     # Average the directions
     avg_direction = (p1_normalized + p2_normalized) / 2
     
-    # Convert to angle change (max 45 degrees)
-    angle_change = avg_direction * 45
+    # Much smaller angle change for smooth control (max 5 degrees per frame)
+    angle_change = avg_direction * 5
     
     return angle_change
 
@@ -142,13 +148,14 @@ def main():
     
     # Growth parameters
     plant_base_x = SCREEN_WIDTH // 2
-    segment_length = 25 * SCALE_FACTOR
+    segment_length = 15 * SCALE_FACTOR  # Smaller segments for smoother curves
     margin = int(80 * SCALE_FACTOR)  # Scale margin with screen size
     plant_base_y = SCREEN_HEIGHT - (margin + int(2 * segment_length))  # Start outside margin
     current_angle = -90  # Start growing upward
     
     # Game state
     growth_frame_counter = 0
+    target_angle = current_angle  # Smooth angle interpolation
     
     # Input states
     p1_button_pressed = False
@@ -189,17 +196,15 @@ def main():
                             p2_button = int(values[5])
                 except (ValueError, IndexError):
                     pass
-        else:
-            # Keyboard controls
-            keys = pygame.key.get_pressed()
-            if keys[pygame.K_a]: p1_joy_x = 500
-            if keys[pygame.K_d]: p1_joy_x = 3500
-            if keys[pygame.K_LEFT]: p2_joy_x = 500
-            if keys[pygame.K_RIGHT]: p2_joy_x = 3500
-            if keys[pygame.K_SPACE]: p1_button = 0
-            if keys[pygame.K_RETURN]: p2_button = 0
-        
-        # Calculate joystick direction
+            else:
+                # Keyboard controls - more gradual values for smoother control
+                keys = pygame.key.get_pressed()
+                if keys[pygame.K_a]: p1_joy_x = 1500  # Less extreme values
+                if keys[pygame.K_d]: p1_joy_x = 2500
+                if keys[pygame.K_LEFT]: p2_joy_x = 1500
+                if keys[pygame.K_RIGHT]: p2_joy_x = 2500
+                if keys[pygame.K_SPACE]: p1_button = 0
+                if keys[pygame.K_RETURN]: p2_button = 0        # Calculate joystick direction
         angle_change = calculate_direction_from_joysticks(p1_joy_x, p2_joy_x)
         
         # Handle buttons
@@ -221,12 +226,17 @@ def main():
             elif p2_button == 1:
                 p2_button_pressed = False
         
-        # GROW PLANT - Simple version
+        # Update target angle smoothly every frame
+        target_angle += angle_change
+        target_angle = max(-160, min(160, target_angle))
+        
+        # Smooth interpolation toward target angle
+        angle_diff = target_angle - current_angle
+        current_angle += angle_diff * 0.1  # Smooth following
+        
+        # GROW PLANT - More frequent growth for smoother movement
         growth_frame_counter += 1
-        if growth_frame_counter % 10 == 0 and len(plant_segments) < 200:
-            # Apply joystick direction
-            current_angle += angle_change
-            current_angle = max(-160, min(160, current_angle))
+        if growth_frame_counter % 3 == 0 and len(plant_segments) < 200:  # Grow every 3 frames instead of 10
             
             # Check if would go off screen (only block if moving toward edge)
             next_x = current_growth_point.end_pos.x + math.cos(math.radians(current_angle)) * segment_length
