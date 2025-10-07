@@ -1,20 +1,18 @@
 """
 Tug of Space is a cooperative orbital physics experience where two players
-control gravity wells on opposite sides of the screen. By carefully balancing
-their gravitational pulls, they work together to keep colorful celestial objects
-orbiting in mesmerizing patterns around the center. Each player can launch new
-objects with their button, adding mass and complexity to the dance. If either
-player pulls too hard, objects escape and fly off into space. Success requires
-constant communication and adjustment as the system becomes more chaotic with
-each new body. The result is a beautiful, ever-evolving display of physics.
+control gravity wells on opposite sides of the screen. Players hold their buttons
+to activate gravity pulls - the longer you hold, the stronger the pull. When not
+pulling, objects drift naturally. Use your joystick to aim and launch new colorful
+objects into orbit by moving left or right and releasing. The challenge is timing
+your gravity pulls together to create stable orbits while continuously adding new
+bodies. Pull too hard or at the wrong time and objects fly off into space.
 
-The implementation uses Verlet integration for smooth orbital mechanics with
-gravitational forces calculated between all bodies. Each object leaves a fading
-trail to visualize its path through space. The gravity wells pulse and glow
-based on joystick intensity, and particles emit from objects as they move. The
-center has a gentle stabilizing force to create natural circular orbits when
-players balance their pulls. Visual effects include glow halos around massive
-objects and collision detection that merges smaller bodies into larger ones.
+The implementation uses Verlet integration for smooth orbital mechanics. Each
+object leaves a fading trail to visualize its path through space. The gravity
+wells pulse and glow when buttons are held. Objects automatically launch from
+the center when either player moves their joystick left or right, creating an
+intuitive feel where movement equals action. The result is a beautiful dance
+of celestial bodies that rewards cooperation and rhythm between players.
 """
 
 import pygame
@@ -211,9 +209,10 @@ def main():
     center_pos = pygame.Vector2(SCREEN_WIDTH / 2, SCREEN_HEIGHT / 2)
     
     # Input tracking
-    p1_button_pressed = False
-    p2_button_pressed = False
+    p1_last_joy_x = 2048
+    p2_last_joy_x = 2048
     game_time = 0
+    launch_cooldown = 0
     
     while running:
         dt = clock.tick(60) / 1000.0
@@ -254,9 +253,9 @@ def main():
             if keys[pygame.K_SPACE]: p1_button = 0
             if keys[pygame.K_RETURN]: p2_button = 0
         
-        # Calculate gravity well positions and strengths
-        p1_strength = abs(p1_joy_x - 2048) / 2048.0
-        p2_strength = abs(p2_joy_x - 2048) / 2048.0
+        # Gravity strength based on BUTTON PRESS (hold to pull)
+        p1_strength = 1.0 if p1_button == 0 else 0.0
+        p2_strength = 1.0 if p2_button == 0 else 0.0
         
         # Well positions on left and right sides
         p1_well_x = 100
@@ -267,50 +266,61 @@ def main():
             {'pos': pygame.Vector2(p2_well_x, SCREEN_HEIGHT / 2), 'strength': p2_strength}
         ]
         
-        # Launch new bodies
-        if p1_button == 0 and not p1_button_pressed:
-            angle = random.uniform(0, 2 * math.pi)
-            speed = random.uniform(50, 100)
-            vx = math.cos(angle) * speed
-            vy = math.sin(angle) * speed
-            
-            offset = random.uniform(50, 100)
-            spawn_x = center_pos.x + math.cos(angle) * offset
-            spawn_y = center_pos.y + math.sin(angle) * offset
-            
-            color = random.choice(PLANET_COLORS)
-            mass = random.uniform(1, 3)
-            bodies.append(CelestialBody(spawn_x, spawn_y, vx, vy, mass, color))
-            
-            # Spawn particles
-            for _ in range(10):
-                particles.append(Particle(spawn_x, spawn_y, color))
-            
-            p1_button_pressed = True
-        elif p1_button == 1:
-            p1_button_pressed = False
+        # Launch new bodies with JOYSTICK movement
+        launch_cooldown -= dt
         
-        if p2_button == 0 and not p2_button_pressed:
-            angle = random.uniform(0, 2 * math.pi)
-            speed = random.uniform(50, 100)
+        # Player 1 joystick - launch left or right
+        joy1_moved = abs(p1_joy_x - 2048) > 1000
+        if joy1_moved and launch_cooldown <= 0:
+            # Launch direction based on joystick
+            if p1_joy_x < 2048:  # Left
+                angle = math.pi  # Launch towards left
+            else:  # Right
+                angle = 0  # Launch towards right
+            
+            # Add some vertical variation
+            angle += random.uniform(-0.3, 0.3)
+            speed = random.uniform(80, 120)
             vx = math.cos(angle) * speed
             vy = math.sin(angle) * speed
             
-            offset = random.uniform(50, 100)
-            spawn_x = center_pos.x + math.cos(angle) * offset
-            spawn_y = center_pos.y + math.sin(angle) * offset
-            
             color = random.choice(PLANET_COLORS)
             mass = random.uniform(1, 3)
-            bodies.append(CelestialBody(spawn_x, spawn_y, vx, vy, mass, color))
+            bodies.append(CelestialBody(center_pos.x, center_pos.y, vx, vy, mass, color))
             
             # Spawn particles
             for _ in range(10):
-                particles.append(Particle(spawn_x, spawn_y, color))
+                particles.append(Particle(center_pos.x, center_pos.y, color))
             
-            p2_button_pressed = True
-        elif p2_button == 1:
-            p2_button_pressed = False
+            launch_cooldown = 0.3
+        
+        # Player 2 joystick - launch left or right
+        joy2_moved = abs(p2_joy_x - 2048) > 1000
+        if joy2_moved and launch_cooldown <= 0:
+            # Launch direction based on joystick
+            if p2_joy_x < 2048:  # Left
+                angle = math.pi  # Launch towards left
+            else:  # Right
+                angle = 0  # Launch towards right
+            
+            # Add some vertical variation
+            angle += random.uniform(-0.3, 0.3)
+            speed = random.uniform(80, 120)
+            vx = math.cos(angle) * speed
+            vy = math.sin(angle) * speed
+            
+            color = random.choice(PLANET_COLORS)
+            mass = random.uniform(1, 3)
+            bodies.append(CelestialBody(center_pos.x, center_pos.y, vx, vy, mass, color))
+            
+            # Spawn particles
+            for _ in range(10):
+                particles.append(Particle(center_pos.x, center_pos.y, color))
+            
+            launch_cooldown = 0.3
+        
+        p1_last_joy_x = p1_joy_x
+        p2_last_joy_x = p2_joy_x
         
         # Update bodies
         for body in bodies:
@@ -351,8 +361,16 @@ def main():
         count_text = font.render(f"Objects: {len(bodies)}", True, STAR_WHITE)
         screen.blit(count_text, (10, 10))
         
-        instructions = font.render("Press Button to Launch Objects", True, (150, 150, 150))
+        instructions = font.render("Joystick: Launch | Button: Pull Gravity", True, (150, 150, 150))
         screen.blit(instructions, (SCREEN_WIDTH // 2 - instructions.get_width() // 2, SCREEN_HEIGHT - 30))
+        
+        # Show gravity status
+        p1_status = "PULLING" if p1_button == 0 else "---"
+        p2_status = "PULLING" if p2_button == 0 else "---"
+        p1_text = font.render(f"P1: {p1_status}", True, GRAVITY_WELL_P1)
+        p2_text = font.render(f"P2: {p2_status}", True, GRAVITY_WELL_P2)
+        screen.blit(p1_text, (10, 40))
+        screen.blit(p2_text, (SCREEN_WIDTH - 120, 40))
         
         pygame.display.flip()
     
